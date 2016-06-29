@@ -24,7 +24,7 @@ def main(file_name, game_count=20):
         prev = None
         while continue_game:
             env.render()
-            s, a = Trainer.act(observation, q, agent, prev)
+            s, a, _, _ = Trainer.act(observation, q, agent, prev)
             prev = s
             observation, reward, done, info = env.step(a)
             continue_game = not done

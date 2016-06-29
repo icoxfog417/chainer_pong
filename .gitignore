@@ -61,6 +61,10 @@ target/
 #Ipython Notebook
 .ipynb_checkpoints
 .python-version
+
 models/
 .DS_Store
+.idea/
+.vscode/
+*.iml
 

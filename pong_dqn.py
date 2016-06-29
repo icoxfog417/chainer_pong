@@ -4,7 +4,6 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import optimizers
 from chainer import serializers
-import gym
 import os
 from collections import namedtuple
 
@@ -20,9 +19,9 @@ class Q(chainer.Chain):
         self.hidden = hidden
         self.action_count = action_count
         super(Q, self).__init__(
-            l1=L.Linear(self.D, hidden, wscale=1/np.sqrt(self.D)),
-            l2=L.Linear(hidden, hidden, wscale=1/np.sqrt(hidden)),
-            l3=L.Linear(hidden, action_count, wscale=1/np.sqrt(hidden))
+            l1=L.Linear(self.D, hidden, wscale=np.sqrt(self.D)),
+            l2=L.Linear(hidden, hidden, wscale=np.sqrt(hidden)),
+            l3=L.Linear(hidden, action_count, wscale=np.sqrt(hidden))
         )
     
     def clone(self):
@@ -46,11 +45,14 @@ class Agent():
     
     def action(self, qv, force_greedy=False):
         """ This is Agent's policy """
+        is_greedy = True
         if np.random.rand() < self.epsilon and not force_greedy:
             action = self.actions[np.random.randint(0, len(self.actions))]
+            is_greedy = False
         else:
             action = np.argmax(qv)
-        return action
+            print(qv)
+        return action, is_greedy
         
 
 class Trainer():
@@ -80,13 +82,13 @@ class Trainer():
     
     @classmethod
     def act(cls, observation, q_model, agent, prev=None):
-        s, merged = cls._merge_prev(observation, prev)
+        s, merged = cls._make_input(observation, prev)
         qv = q_model.forward(chainer.Variable(np.array([merged])))
-        action = agent.action(qv.data.flatten())
-        return s, action
+        action, is_greedy = agent.action(qv.data.flatten())
+        return s, action, is_greedy, np.max(qv.data)
     
     @classmethod
-    def _merge_prev(cls, observation, prev):
+    def _make_input(cls, observation, prev):
         s = cls._adjust(observation) if observation is not None else np.zeros(Q.D, dtype=np.float32)
         merged = np.maximum(s, prev) if prev is not None else np.zeros(Q.D, dtype=np.float32)
         return s, merged
@@ -115,7 +117,7 @@ class Trainer():
         target = qv.data.copy()
         
         for i, a in enumerate(actions):
-            target[i, a] = max_qv_next[i]
+            target[i, a] = teacher_qv[i]
 
         td = chainer.Variable(target) - qv
         td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # avoid 0 division
@@ -146,16 +148,17 @@ class Trainer():
 
         while True:
             if render: env.render()
-            s, a = self.act(observation, q_model, agent, prev)
+            s, a, is_g, q_max = self.act(observation, q_model, agent, prev)
             prev = s
             
             # execute action and get new observation
             observation, reward, done, info = env.step(a)
-            
+            print("action={0} by {1}. reward={2}".format(a, "greedy(qvalue={0})".format(q_max) if is_g else "random", reward))
+
             # momory it
             ss.append(s)
             acs.append(a)
-            ns.append(self._merge_prev(observation, prev)[1])
+            ns.append(self._make_input(observation, prev)[1])
             rs.append(reward)
             total_reward += reward
             
@@ -191,7 +194,8 @@ class Trainer():
                 
                 # logging
                 running_reward = total_reward if running_reward is None else running_reward * 0.99 + total_reward * 0.01
-                print("resetting env. episode reward total was {0}. running mean: {1}".format(total_reward, running_reward))
+                print("resetting env. episode reward total was {0}. running mean: {1}, epsilon: {2}"
+                    .format(total_reward, running_reward, agent.epsilon))
                 if episode_count % 100 == 0:
                     serializers.save_npz(self.model_path(), q_model)
                 total_reward = 0
