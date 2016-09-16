@@ -1,12 +1,13 @@
 import os
 import sys
 import gym
+from model.agent import Agent
 
 
-class PongEnv():
+class Environment():
 
-    def __init__(self):
-        self.env = gym.make("Pong-v0")
+    def __init__(self, env_name="Pong-v0"):
+        self.env = gym.make(env_name)
         self.actions = list(range(self.env.action_space.n))
     
     def play(self, agent, episode=5, render=True, report_interval=-1):
@@ -24,8 +25,14 @@ class PongEnv():
                 if step_count == 0:
                     action = agent.start(observation)
                 else:
-                    action = agent.act(observation, reward, done, i)
+                    action = agent.act(observation, reward)
                     observation, reward, done, info = self.env.step(action)
+
+                if done:
+                    agent.end(observation, reward)
+                
+                yield i, step_count, reward
+
                 continue_game = not done
                 score += reward
                 step_count += 1
@@ -38,23 +45,3 @@ class PongEnv():
                 if report:
                     print(report)
                 scores = []
-    
-    @classmethod
-    def format_observation(cls, observation):
-        pass
-
-
-class Agent():
-
-    def __init__(self, actions):
-        self.actions = actions
-
-    def start(self, observation):
-        return 0  # default action
-
-    def act(self, observation, reward, done=False, episode_count=-1):
-        return 0  # default action
-    
-    def report(self, scores):
-        return ""
-

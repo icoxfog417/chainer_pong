@@ -1,146 +1,155 @@
-class Trainer():
-    Episode = namedtuple("Episode", ["states", "actions", "next_states", "rewards"])
+import numpy as np
+from chainer import Variable
+from chainer import optimizers
+from model.dqn_agent import Q
+import chainer.functions as F
+from model.agent import Agent
+
+
+class DQNTrainer(Agent):
     
     def __init__(self, 
-                    gamma=0.99, 
-                    batch_size=10, 
-                    learning_rate=1e-4, 
-                    decay_rate=0.99,
-                    initial_epsilon=1,
-                    epsilon_decay=0.99,
+                    agent, 
+                    memory_size=10**5, 
+                    replay_size=32,
+                    gamma=0.99,
+                    initial_exploration=10**4,
+                    target_update_freq=10**4,
+                    learning_rate=0.00025,
+                    epsilon_decay=1e-6,
                     minimum_epsilon=0.1):
-        self.gamma = gamma  # discount factor for reward
-        self.batch_size = batch_size  # memory size for experience replay
+        self.agent = agent
+        self.target = Q(self.agent.q.n_history, self.agent.q.n_action)
+
+        self.memory_size = memory_size
+        self.replay_size = replay_size
+        self.gamma = gamma
+        self.initial_exploration = initial_exploration
+        self.target_update_freq = target_update_freq
         self.learning_rate = learning_rate
-        self.decay_rate = decay_rate
-        self.initial_epsilon = initial_epsilon
         self.epsilon_decay = epsilon_decay
         self.minimum_epsilon = minimum_epsilon
-        self.optimizer = optimizers.RMSprop(lr=self.learning_rate, alpha=decay_rate)
-    
-    @classmethod
-    def model_path(cls, fn="pong.model"):
-        _fn = fn if fn else "pong.model"
-        return os.path.join(os.path.dirname(__file__), "models/" + _fn)
-    
-    @classmethod
-    def act(cls, observation, q_model, agent, prev=None):
-        s, merged = cls._make_input(observation, prev)
-        qv = q_model.forward(chainer.Variable(np.array([merged])))
-        action, is_greedy = agent.action(qv.data.flatten())
-        return s, action, is_greedy, np.max(qv.data)
-    
-    @classmethod
-    def _make_input(cls, observation, prev):
-        s = cls._adjust(observation) if observation is not None else np.zeros(Q.D, dtype=np.float32)
-        merged = np.maximum(s, prev) if prev is not None else np.zeros(Q.D, dtype=np.float32)
-        return s, merged
+        self._step = 0
 
-    @classmethod
-    def _adjust(cls, I):
-        """ prepro 210x160x3 uint8 frame into 6400 (80x80) 1D float vector """
-        I = I[35:195] # crop
-        I = I[::2,::2,0] # downsample by factor of 2
-        I[I == 144] = 0 # erase background (background type 1)
-        I[I == 109] = 0 # erase background (background type 2)
-        I[I != 0] = 1 # everything else (paddles, ball) just set to 1
-        return I.astype(np.float32).ravel()
+        # prepare memory for replay
+        n_hist = self.agent.q.n_history
+        size = self.agent.q.SIZE
+        self.memory = [
+            np.zeros((memory_size, n_hist, size, size), dtype=np.uint8),
+            np.zeros(memory_size, dtype=np.uint8),
+            np.zeros((memory_size, 1), dtype=np.float32),
+            np.zeros((memory_size, n_hist, size, size), dtype=np.uint8),
+            np.zeros((memory_size, 1), dtype=np.bool)
+        ]
+        self.memory_text = [
+            "state", "action", "reward", "next_state", "episode_end"
+        ]
 
-    def calculate_loss(self, q_model, teacher, episode, indices=()):
-        shuffle = lambda x: x if len(indices) == 0 else x[indices]
-        states, actions, next_states, rewards = \
-            [shuffle(d) for d in (episode.states, episode.actions, episode.next_states, episode.rewards)]
-        
-        v_states = chainer.Variable(states)
-        v_next_states = chainer.Variable(next_states)
+        # prepare optimizer
+        self.optimizer = optimizers.RMSpropGraves(lr=learning_rate, alpha=0.95, momentum=0.95, eps=0.01)
+        self.optimizer.setup(self.agent.q)
+    
+    def calc_loss(self, states, actions, rewards, next_states, episode_ends):
+        q = self.agent.q(states)
+        q_t = self.target(next_states)  # Q(s', *)
+        max_q_prime = np.array(list(map(np.max, q_t.data)), dtype=np.float32)  # max_a Q(s', a)
 
-        qv = q_model.forward(v_states)
-        max_qv_next = np.max(teacher.forward(v_next_states).data, axis=1)
-        teacher_qv = np.sign(rewards) + self.gamma * max_qv_next
         target = qv.data.copy()
+        for i in range(self.replay_size):
+            if episode_ends[i][0] is True:
+                _r = np.sign(rewards[i])
+            else:
+                _r = np.sign(rewards[i]) + self.gamma * max_q_prime[i]
+            
+            target[i, actions[i]] = _r
         
-        for i, a in enumerate(actions):
-            target[i, a] = teacher_qv[i]
+        td = Variable(self.target.to_gpu(target)) - q
+        td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # Avoid zero division
+        td_clip = td * (abs(td.data) <= 1) + td/abs(td_tmp) * (abs(td.data) > 1)
 
-        td = chainer.Variable(target) - qv
-        td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # avoid 0 division
-        td_clip = td * (abs(td.data) <= 1) + td / abs(td_tmp) * (abs(td.data) > 1)
-        zeros = chainer.Variable(np.zeros(td.data.shape, dtype=np.float32))
-        loss = F.mean_squared_error(td_clip, zeros)
+        zeros = Variable(self.target.to_gpu(np.zeros((self.replay_size, self.target.n_action), dtype=np.float32)))
+        loss = F.mean_squared_error(td_clip, zero_val)
         return loss
-        
-     
-    def train(self, q_model, env, render=False):
-        """
-        q model is optimized in accordance with openai gym environment. each action is decided by given agent
-        """
-        
-        # setting up environment
-        observation = env.reset()
-        prev = None
-        self.optimizer.setup(q_model)
-        agent = Agent(self.initial_epsilon, list(range(env.action_space.n)))
-        teacher = q_model.clone()
-        
-        # memory
-        ss, acs, ns, rs = [], [], [], []  # state, action, next state, reward
-        episode_count = 0
-        memory = []
-        total_reward = 0
-        running_reward = None
 
-        while True:
-            if render: env.render()
-            s, a, is_g, q_max = self.act(observation, q_model, agent, prev)
-            prev = s
-            
-            # execute action and get new observation
-            observation, reward, done, info = env.step(a)
-            print("action={0} by {1}. reward={2}".format(a, "greedy(qvalue={0})".format(q_max) if is_g else "random", reward))
+    def start(self, observation):
+        self._step = 0
+        return self.agent.start(observation)
+    
+    def act(self, observation, reward):
+        if self.initial_exploration < self._step:
+            self.agent.epsilon -= 1.0/10**6
+            if self.agent.epsilon < self.minimum_epsilon:
+                self.agent.epsilon = self.minimum_epsilon
+        
+        return self.train(observation, reward, episode_end=False)
 
-            # momory it
-            ss.append(s)
-            acs.append(a)
-            ns.append(self._make_input(observation, prev)[1])
-            rs.append(reward)
-            total_reward += reward
-            
-            if done:
-                print("episode {0} has done. its length is {1}.".format(episode_count, len(rs)))
-                episode_count += 1
-                ep = Trainer.Episode(
-                    np.array(ss, dtype=np.float32),
-                    np.array(acs, dtype=np.int8),
-                    np.array(ns, dtype=np.float32),
-                    np.array(rs, dtype=np.float32))
-                memory.append(ep)
-                ss, acs, ns, rs = [], [], [], []
-                
-                if episode_count % self.batch_size == 0:
-                    self.optimizer.zero_grads()
-                    total_loss = 0
-                    for ep in memory:
-                        indices = np.random.permutation(len(ep.states))  # random sampling
-                        loss = self.calculate_loss(q_model, teacher, ep, indices)
-                        total_loss += loss.data
-                        loss.backward()
-                    self.optimizer.update()
+    def end(self, observation, reward):
+        self.train(observation, reward, episode_end=True)
 
-                    print("> done batch update. loss={0}".format(total_loss))
-                    teacher.copyparams(q_model)  # update teacher
-                    memory = []
-                
-                # update policy
-                agent.epsilon -= self.epsilon_decay
-                if agent.epsilon < self.minimum_epsilon:
-                    agent.epsilon = self.minimum_epsilon
-                
-                # logging
-                running_reward = total_reward if running_reward is None else running_reward * 0.99 + total_reward * 0.01
-                print("resetting env. episode reward total was {0}. running mean: {1}, epsilon: {2}"
-                    .format(total_reward, running_reward, agent.epsilon))
-                if episode_count % 100 == 0:
-                    serializers.save_npz(self.model_path(), q_model)
-                total_reward = 0
-                observation = env.reset() # reset env
-                prev = None
+    def train(self, observation, reward, episode_end):
+        action = 0
+        last_state = self.agent.get_state()
+        last_action = self.agent.last_action
+        if not episode_end:
+            action = self.agent.act(observation, reward, episode_end)
+            result_state = self.agent.get_state()
+            self.memorize(
+                last_state, 
+                last_action, 
+                reward,
+                result_state,
+                False)
+        else:
+            self.memorize(
+                last_state, 
+                last_action, 
+                reward,
+                last_state,
+                True)
+        
+        self.experience_replay()
+
+        if self._step % self.target_update_freq == 0:
+            self.target.copyparams(self.agent.q)
+
+        self._step += 1
+        return action
+
+    def memorize(self, state, action, reward, next_state, episode_end):
+        _index = self._step % self.memory_size
+
+        self.memory[0][_index] = state
+        self.memory[1][_index] = action
+        self.memory[2][_index] = reward
+
+        if not episode_end:
+            self.replay_buffer[3][_index] = next_state
+        self.memory[4][_index] = episode_end
+
+    def experience_replay(self):
+        if self._step < self.initial_exploration:
+            return 0
+        
+        indices = []
+        if self._step < self.memory_size:
+            indices = np.random.randint(0, self._step, (self.replay_size, 1))
+        else:
+            indices = np.random.randint(0, self.memory_size, (self.replay_size, 1))
+        
+        states = []
+        actions = []
+        rewards = []
+        next_states = []
+        episode_ends = []
+
+        for i in indices:
+            states.append(self.memory[0][i])
+            actions.append(self.memory[1][i])
+            rewards.append(self.memory[2][i])
+            next_states.append(self.memory[3][i])
+            episode_ends.append(self.memory[4][i])
+        
+        self.optimizer.cleargrads()
+        loss = self.get_loss(states, actions, rewards, next_states, episode_ends)
+        loss.backward()
+        self.optimizer.update()

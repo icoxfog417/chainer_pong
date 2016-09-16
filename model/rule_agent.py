@@ -1,5 +1,5 @@
 import random
-from model.pong_env import Agent
+from model.agent import Agent
 
 
 class RandomAgent(Agent):
@@ -14,7 +14,7 @@ class RandomAgent(Agent):
     def start(self, observation):
         return self._random_act()
 
-    def act(self, observation, reward, done=False, episode_count=-1):
+    def act(self, observation, reward):
         a = self._random_act()
         return self._random_act()
 
@@ -38,7 +38,7 @@ class CycleAgent(Agent):
         self._count = 0
         return self.actions[self._index]
 
-    def act(self, observation, reward, done=False, episode_count=-1):
+    def act(self, observation, reward):
         action = self.actions[self._index]
         self._count += 1
         if self._count == self.keep_length:

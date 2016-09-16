@@ -2,20 +2,25 @@ import os
 import sys
 import unittest
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from model.pong_env import PongEnv
+from model.environment import Environment
 from model.rule_agent import CycleAgent
 
 
-class TestPongEnv(unittest.TestCase):
+class TestRuleAgent(unittest.TestCase):
 
-    def xtest_cycle_agent(self):
-        env = PongEnv()
+    def test_cycle_agent(self):
+        env = Environment()
         agent = CycleAgent(env.actions, keep_length=200)
-        env.play(agent, episode=3)
+        for episode, step, reward in env.play(agent, episode=3):
+            pass
 
     def test_funfun_defence(self):
-        env = PongEnv()
+        env = Environment(env_name="Pong-v0")
         agent = CycleAgent((2, 3), keep_length=20)
+
+        for episode, step, reward in env.play(agent, episode=1):
+            pass
+
         env.play(agent, episode=2)
 
 
