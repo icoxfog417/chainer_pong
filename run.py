@@ -29,7 +29,7 @@ def train(render, gpu):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Pong DQN")
-    parser.add_argument("--render", action="store_const", const=True, default=True, help="render or not")
+    parser.add_argument("--render", action="store_const", const=True, default=False, help="render or not")
     parser.add_argument("--train", action="store_const", const=True, default=False, help="train or not")
     parser.add_argument("--gpu", action="store_const", const=True, default=False, help="user gpu or not")
     args = parser.parse_args()
