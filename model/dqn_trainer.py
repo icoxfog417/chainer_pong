@@ -1,6 +1,7 @@
 import numpy as np
 from chainer import Variable
 from chainer import optimizers
+from chainer import cuda
 from model.dqn_agent import Q
 import chainer.functions as F
 from model.agent import Agent
