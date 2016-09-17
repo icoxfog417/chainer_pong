@@ -1,7 +1,9 @@
+import os
 import numpy as np
 from chainer import Chain
 from chainer import Variable
 from chainer import cuda
+from chainer import serializers
 import chainer.functions as F
 from model.agent import Agent
 
@@ -41,7 +43,7 @@ class Q(Chain):
 
 class DQNAgent(Agent):
     
-    def __init__(self, actions, epsilon=1, n_history=4, on_gpu=False):
+    def __init__(self, actions, epsilon=1, n_history=4, on_gpu=False, model_path="", load_if_exist=True):
         self.actions = actions
         self.epsilon = epsilon
         self.q = Q(n_history, len(actions), on_gpu)
@@ -51,6 +53,14 @@ class DQNAgent(Agent):
             np.zeros((self.q.SIZE, self.q.SIZE), np.float32)
         ]  # now & pre
         self.last_action = 0
+        self.model_path = model_path if model_path else os.path.join(os.path.dirname(__file__), "./store")
+        if not os.path.exists(self.model_path):
+            print("make directory to store model at {0}".format(self.model_path))
+            os.mkdir(self.model_path)
+        else:
+            models = self.get_model_files()
+            if load_if_exist and len(models) > 0:
+                serializers.load_npz(os.path.join(self.model_path, models[-1]), self.q)  # use latest model
     
     def _update_state(self, observation):
         formatted = self._format(observation)
@@ -89,7 +99,7 @@ class DQNAgent(Agent):
         if np.random.rand() < self.epsilon:
             action = np.random.randint(0, len(self.actions))
         else:
-            action = np.argmax(qv)
+            action = np.argmax(qv.data[-1])
         
         self._observations[-1] = self._observations[0].copy()
         self._observations[0] = o
@@ -107,6 +117,21 @@ class DQNAgent(Agent):
         
         np_state = np.array(state)  # n_history x (width x height)
         return np_state
+    
+    def save(self, index=0):
+        fname = "pong.model" if index == 0 else "pong_{0}.model".format(index)
+        path = os.path.join(self.model_path, fname)
+        serializers.save_npz(path, self.q)
+    
+    def get_model_files(self):
+        files = os.listdir(self.model_path)
+        model_files = []
+        for f in files:
+            if f.startswith("pong") and f.endswith(".model"):
+                model_files.append(f)
+        
+        model_files.sort()
+        return model_files
 
     @classmethod
     def model_path(cls, fn="pong.model"):

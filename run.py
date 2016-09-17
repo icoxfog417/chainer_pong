@@ -1,38 +1,40 @@
 import os
 import sys
-import gym
-import numpy as np
-import chainer
-from chainer import serializers
-from pong_dqn import Q, Agent, Trainer
+import argparse
+sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+from model.environment import Environment
+from model.dqn_agent import DQNAgent
+from model.dqn_trainer import DQNTrainer
 
 
-def main(file_name, game_count=20):
-    path = Trainer.model_path(file_name)
-    if not os.path.isfile(file_name):
-        print("{0} is not exist.".format(file_name))
-    
-    env = gym.make("Pong-v0")
-    q = Q(200, env.action_space.n)
-    agent = Agent(0.1, list(range(env.action_space.n)))
-    serializers.load_npz(path, q)
-    
-    _prefix, _ext = os.path.splitext(path)
-    for i_episode in range(game_count):
-        observation = env.reset()
-        continue_game = True
-        prev = None
-        while continue_game:
-            env.render()
-            s, a, _, _ = Trainer.act(observation, q, agent, prev)
-            prev = s
-            observation, reward, done, info = env.step(a)
-            continue_game = not done
+PATH = os.path.join(os.path.dirname(__file__), "./store")
+
+
+def run(render):
+    env = Environment()
+    agent = DQNAgent(env.actions, epsilon=0.1, model_path=PATH)
+
+    for ep, s, r in env.play(agent, render=render):
+        pass
+
+
+def train(render):
+    env = Environment()
+    agent = DQNAgent(env.actions, epsilon=1, model_path=PATH)
+    trainer = DQNTrainer(agent)
+
+    for ep, s, r in env.play(trainer, episode=10**5, render=render, report_interval=10):
+        pass
 
 
 if __name__ == "__main__":
-    argvs = sys.argv
-    file_name = ""
-    if len(argvs) == 2:
-        file_name = argvs[1]
-    main(file_name)
+    parser = argparse.ArgumentParser(description="Pong DQN")
+    parser.add_argument("--render", action="store_const", const=True, default=True, help="render or not")
+    parser.add_argument("--train", action="store_const", const=True, default=False, help="train or not")
+    args = parser.parse_args()
+
+    if args.train:
+        train(args.render)
+    else:
+        run(args.render)
+

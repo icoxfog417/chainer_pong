@@ -41,7 +41,7 @@ class Environment():
 
             if report_interval > 0 and i % report_interval == 0:
                 print("average score is {0}.".format(sum(scores) / len(scores)))
-                report = agent.report()
+                report = agent.report(i)
                 if report:
                     print(report)
                 scores = []

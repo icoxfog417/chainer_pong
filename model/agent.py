@@ -12,5 +12,5 @@ class Agent():
     def end(self, observation, reward):
         pass
 
-    def report(self, scores):
+    def report(self, episode):
         return ""

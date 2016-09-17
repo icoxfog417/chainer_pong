@@ -17,7 +17,7 @@ class FormatAgent(Agent):
         self.path = path
         self._step = 0
 
-    def act(self, observation, reward, done):
+    def act(self, observation, reward):
         arr = self.agent._format(observation)
         img = Image.fromarray((arr * 255).astype(np.uint8))  # because 0/1 value
         img.save(os.path.join(self.path, "image_{0}.png".format(self._step)), "png")

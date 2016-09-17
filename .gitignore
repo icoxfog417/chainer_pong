@@ -68,3 +68,4 @@ models/
 .vscode/
 *.iml
 venv/
+store/

@@ -47,5 +47,5 @@ class CycleAgent(Agent):
             print("change action to {0}".format(self.actions[self._index]))
         return action
     
-    def report(self):
+    def report(self, episode):
         return "keeping action={0}".format(self.actions[self._index])
