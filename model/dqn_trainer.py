@@ -19,7 +19,7 @@ class DQNTrainer(Agent):
                     epsilon_decay=1e-6,
                     minimum_epsilon=0.1):
         self.agent = agent
-        self.target = Q(self.agent.q.n_history, self.agent.q.n_action)
+        self.target = Q(self.agent.q.n_history, self.agent.q.n_action, on_gpu=self.agent.q.on_gpu)
 
         self.memory_size = memory_size
         self.replay_size = replay_size
