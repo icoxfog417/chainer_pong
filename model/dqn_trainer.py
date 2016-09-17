@@ -56,7 +56,7 @@ class DQNTrainer(Agent):
         q_t = self.target(next_states)  # Q(s', *)
         max_q_prime = np.array(list(map(np.max, q_t.data)), dtype=np.float32)  # max_a Q(s', a)
 
-        target = qv.data.copy()
+        target = np.array(qv.data.copy())
         for i in range(self.replay_size):
             if episode_ends[i][0] is True:
                 _r = np.sign(rewards[i])
