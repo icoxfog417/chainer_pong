@@ -32,7 +32,7 @@ class Q(Chain):
     def __call__(self, state: np.ndarray):
         _state = self.arr_to_gpu(state)
         s = Variable(_state)
-        h1 = F.relu(self.l1(state))
+        h1 = F.relu(self.l1(s))
         h2 = F.relu(self.l2(h1))
         h3 = F.relu(self.l3(h2))
         h4 = F.relu(self.l4(h3))
