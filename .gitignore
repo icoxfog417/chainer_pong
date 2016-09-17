@@ -67,4 +67,5 @@ models/
 .idea/
 .vscode/
 *.iml
-
+venv/
+store/
