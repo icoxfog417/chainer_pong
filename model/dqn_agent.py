@@ -26,9 +26,11 @@ class Q(Chain):
             l4=F.Linear(3136, 512, wscale=np.sqrt(2)),
             out=F.Linear(512, self.n_action, initialW=np.zeros((n_action, 512), dtype=np.float32))
         )
+        if on_gpu:
+            self.to_gpu()
     
     def __call__(self, state: np.ndarray):
-        _state = self.to_gpu(state)
+        _state = self.arr_to_gpu(state)
         s = Variable(_state)
         h1 = F.relu(self.l1(state))
         h2 = F.relu(self.l2(h1))
@@ -37,7 +39,7 @@ class Q(Chain):
         q_value = self.out(h4)
         return q_value
     
-    def to_gpu(self, arr):
+    def arr_to_gpu(self, arr):
         return arr if not self.on_gpu else cuda.to_gpu(arr)
 
 
@@ -132,8 +134,3 @@ class DQNAgent(Agent):
         
         model_files.sort()
         return model_files
-
-    @classmethod
-    def model_path(cls, fn="pong.model"):
-        _fn = fn if fn else "pong.model"
-        return os.path.join(os.path.dirname(__file__), "models/" + _fn)

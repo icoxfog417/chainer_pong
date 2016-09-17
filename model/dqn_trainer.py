@@ -65,11 +65,11 @@ class DQNTrainer(Agent):
             
             target[i, actions[i]] = _r
         
-        td = Variable(self.target.to_gpu(target)) - qv
+        td = Variable(self.target.arr_to_gpu(target)) - qv
         td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # Avoid zero division
         td_clip = td * (abs(td.data) <= 1) + td/abs(td_tmp) * (abs(td.data) > 1)
 
-        zeros = Variable(self.target.to_gpu(np.zeros((self.replay_size, self.target.n_action), dtype=np.float32)))
+        zeros = Variable(self.target.arr_to_gpu(np.zeros((self.replay_size, self.target.n_action), dtype=np.float32)))
         loss = F.mean_squared_error(td_clip, zeros)
         self._loss = loss.data
         self._qv = np.max(qv.data)
