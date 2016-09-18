@@ -26,7 +26,7 @@ class Environment():
                     action = agent.start(observation)
                 else:
                     action = agent.act(observation, reward)
-                    observation, reward, done, info = self.env.step(action)
+                observation, reward, done, info = self.env.step(action)
 
                 if done:
                     agent.end(observation, reward)
