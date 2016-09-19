@@ -62,6 +62,7 @@ class DQNAgent(Agent):
         else:
             models = self.get_model_files()
             if load_if_exist and len(models) > 0:
+                print("load model file {0}.".format(models[-1]))
                 serializers.load_npz(os.path.join(self.model_path, models[-1]), self.q)  # use latest model
     
     def _update_state(self, observation):
