@@ -27,7 +27,7 @@ class Environment():
                 if step_count == 0:
                     action = agent.start(observation)
                 else:
-                    if step_count % action_interval == 0:
+                    if step_count % action_interval == 0 or reward > 0:
                         action = agent.act(observation, reward)
                     else:
                         action = last_action
