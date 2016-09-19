@@ -10,7 +10,7 @@ class Environment():
         self.env = gym.make(env_name)
         self.actions = list(range(self.env.action_space.n))
     
-    def play(self, agent, episode=5, render=True, report_interval=-1):
+    def play(self, agent, episode=5, render=True, report_interval=-1, action_interval=1):
         scores = []
         for i in range(episode):
             observation = self.env.reset()
@@ -19,14 +19,21 @@ class Environment():
             step_count = 0
             score = 0.0
             continue_game = True
+            last_action = 0
             while continue_game:
                 if render:
                     self.env.render()
+
                 if step_count == 0:
                     action = agent.start(observation)
                 else:
-                    action = agent.act(observation, reward)
+                    if step_count % action_interval == 0:
+                        action = agent.act(observation, reward)
+                    else:
+                        action = last_action
+
                 observation, reward, done, info = self.env.step(action)
+                last_action = action
 
                 if done:
                     agent.end(observation, reward)

@@ -11,7 +11,7 @@ class DQNTrainer(Agent):
     
     def __init__(self, 
                     agent, 
-                    memory_size=10**3,
+                    memory_size=10**4,
                     replay_size=32,
                     gamma=0.99,
                     initial_exploration=10**4,
