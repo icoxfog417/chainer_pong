@@ -21,8 +21,6 @@ class TestRuleAgent(unittest.TestCase):
         for episode, step, reward in env.play(agent, episode=1):
             pass
 
-        env.play(agent, episode=2)
-
 
 if __name__ == "__main__":
     unittest.main()
