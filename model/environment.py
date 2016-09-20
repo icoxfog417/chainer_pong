@@ -10,8 +10,11 @@ class Environment():
         self.env = gym.make(env_name)
         self.actions = list(range(self.env.action_space.n))
     
-    def play(self, agent, episode=5, render=True, report_interval=-1, action_interval=1):
+    def play(self, agent, episode=5, render=True, report_interval=-1, action_interval=1, record_path=""):
         scores = []
+        if record_path:
+            self.env.monitor.start(record_path)
+
         for i in range(episode):
             observation = self.env.reset()
             done = False
@@ -52,3 +55,8 @@ class Environment():
                 if report:
                     print(report)
                 scores = []
+
+        if record_path:
+            self.env.monitor.close()
+
+
