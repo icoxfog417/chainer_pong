@@ -12,7 +12,7 @@ PATH = os.path.join(os.path.dirname(__file__), "./store")
 
 def run(render, gpu):
     env = Environment()
-    agent = DQNAgent(env.actions, epsilon=0.01, model_path=PATH, on_gpu=gpu)
+    agent = DQNAgent(env.actions, epsilon=0.05, model_path=PATH, on_gpu=gpu)
 
     for ep, s, r in env.play(agent, episode=5, render=True):
         pass
