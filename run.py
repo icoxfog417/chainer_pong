@@ -13,7 +13,7 @@ PATH = os.path.join(os.path.dirname(__file__), "./store")
 
 def run(submit_key, gpu):
     env = Environment()
-    agent = DQNAgent(env.actions, epsilon=0.05, model_path=PATH, on_gpu=gpu)
+    agent = DQNAgent(env.actions, epsilon=0.01, model_path=PATH, on_gpu=gpu)
     path = ""
     episode = 5
     if submit_key:
